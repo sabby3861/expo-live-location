@@ -19,6 +19,7 @@ import ExpoModulesCore
 public final class ExpoLiveLocationModule: Module {
 
     private static let locationEvent = "onLocationUpdate"
+    private static let riskEvent = "onRiskAlert"
 
     /// Backing storage for the provider and its construction lock. A plain
     /// `lazy var` is not safe here: Expo can dispatch the async functions and the
@@ -43,10 +44,21 @@ public final class ExpoLiveLocationModule: Module {
     /// stream that a subsequent start already installed.
     private var streamGeneration = 0
 
+    /// Guards `riskMonitor`. Deliberately separate from `streamLock`: the stream
+    /// loop evaluates risk per sample and `setRiskZones` replaces the monitor, and
+    /// the two locks are never held together, so they cannot deadlock.
+    private let riskLock = NSLock()
+
+    /// The risk state machine. Starts empty (no zones, so no alerts) and is rebuilt
+    /// by `setRiskZones`. Its membership state intentionally persists across
+    /// stream stop/start — only a new zone configuration resets it — so a device
+    /// that never left a zone does not re-fire `.entered` when streaming resumes.
+    private var riskMonitor = RiskMonitor(zones: [])
+
     public func definition() -> ModuleDefinition {
         Name("ExpoLiveLocation")
 
-        Events(Self.locationEvent)
+        Events(Self.locationEvent, Self.riskEvent)
 
         AsyncFunction("requestPermission") { () async -> String in
             PermissionStatus(await self.resolvedProvider().requestAuthorization()).rawValue
@@ -54,6 +66,10 @@ public final class ExpoLiveLocationModule: Module {
 
         AsyncFunction("getCurrentLocation") { () async throws -> LocationSampleRecord in
             LocationSampleRecord(try await self.resolvedProvider().currentLocation())
+        }
+
+        Function("setRiskZones") { (zones: [RiskZoneRecord]) in
+            self.updateRiskZones(zones)
         }
 
         Function("startUpdates") {
@@ -87,6 +103,7 @@ public final class ExpoLiveLocationModule: Module {
             for await sample in provider.locationUpdates() {
                 guard let self else { break }
                 self.sendEvent(Self.locationEvent, LocationSampleRecord(sample).toDictionary())
+                self.emitRiskAlerts(for: sample)
             }
             // The stream finished on its own (e.g. authorization revoked). Clear the
             // running flag so a future start can begin again.
@@ -104,6 +121,32 @@ public final class ExpoLiveLocationModule: Module {
         streamGeneration += 1
         streamLock.unlock()
         task?.cancel()
+    }
+
+    /// Replaces the monitored zones with the valid entries of `records`.
+    ///
+    /// Invalid zones (non-finite numbers, non-positive radius, out-of-range
+    /// coordinates) are dropped by `RiskZoneRecord.riskZone()`. Installing a new
+    /// configuration starts the risk state fresh, so the next sample is classified
+    /// against the new zones from a clean slate.
+    private func updateRiskZones(_ records: [RiskZoneRecord]) {
+        let zones = records.compactMap { $0.riskZone() }
+        riskLock.lock()
+        riskMonitor = RiskMonitor(zones: zones)
+        riskLock.unlock()
+    }
+
+    /// Evaluates one sample against the current zones and emits an `onRiskAlert`
+    /// for each boundary crossing. The monitor is mutated under `riskLock`; the
+    /// resulting events are sent after the lock is released so the bridge call
+    /// never happens while holding it.
+    private func emitRiskAlerts(for sample: LocationSample) {
+        riskLock.lock()
+        let alerts = riskMonitor.evaluate(sample)
+        riskLock.unlock()
+        for alert in alerts {
+            sendEvent(Self.riskEvent, RiskEventRecord(alert).toDictionary())
+        }
     }
 
     private func finishStreaming(generation: Int) {

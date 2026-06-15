@@ -1,10 +1,12 @@
 @preconcurrency import CoreLocation
 
-/// Translations between CoreLocation's types and the library's domain types.
+/// Translations between CoreLocation's types and the library's domain types, plus
+/// the one geodesic computation (`Coordinate.distance(to:)`) that needs the
+/// framework's geometry.
 ///
 /// CoreLocation is imported in exactly two files — this one and
 /// `SystemLocationSource` — so the rest of the package stays framework-free and
-/// the mapping logic has a single, reviewable home.
+/// every use of the framework has a single, reviewable home.
 extension LocationSample {
     /// Projects a `CLLocation` into the framework-free domain value.
     init(_ location: CLLocation) {
@@ -18,6 +20,19 @@ extension LocationSample {
             horizontalAccuracy: location.horizontalAccuracy,
             timestamp: location.timestamp
         )
+    }
+}
+
+extension LocationSample.Coordinate {
+    /// The great-circle distance, in meters, from this coordinate to `other`.
+    ///
+    /// Delegated to `CLLocation.distance(from:)` so the result uses CoreLocation's
+    /// own ellipsoidal geometry — the same math the rest of the system applies —
+    /// rather than a hand-rolled haversine. Pure computation: it needs no device
+    /// and runs in unit tests.
+    func distance(to other: LocationSample.Coordinate) -> Double {
+        CLLocation(latitude: latitude, longitude: longitude)
+            .distance(from: CLLocation(latitude: other.latitude, longitude: other.longitude))
     }
 }
 

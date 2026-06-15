@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Demo drive for expo-live-location.
+
+  A straight north-west run that starts at the iOS Simulator's default location
+  (37.7858, -122.4064 — inside the "Yerba Buena Gardens" demo zone) and drives
+  out through the "Civic Center" zone, so the risk banner cycles through every
+  state live: INSIDE -> clear -> APPROACHING -> INSIDE -> clear.
+
+  Xcode: Debug > Simulate Location > Add GPX File to Workspace…, then pick
+  "route" from the location list. The <time> stamps make playback speed
+  deterministic (~13 m/s, a brisk city drive).
+
+  No Xcode? Drive the same path against a booted simulator with:
+    xcrun simctl location booted start --speed=12 \
+      37.785800,-122.406400 37.787686,-122.408276 37.789573,-122.410152 \
+      37.790705,-122.411277 37.792088,-122.412653 37.794603,-122.415154
+-->
+<gpx version="1.1" creator="expo-live-location-example" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="37.785800" lon="-122.406400"><time>2026-06-15T12:00:00Z</time></wpt>
+  <wpt lat="37.786743" lon="-122.407338"><time>2026-06-15T12:00:10Z</time></wpt>
+  <wpt lat="37.787686" lon="-122.408276"><time>2026-06-15T12:00:20Z</time></wpt>
+  <wpt lat="37.788630" lon="-122.409214"><time>2026-06-15T12:00:30Z</time></wpt>
+  <wpt lat="37.789573" lon="-122.410152"><time>2026-06-15T12:00:40Z</time></wpt>
+  <wpt lat="37.790202" lon="-122.410777"><time>2026-06-15T12:00:50Z</time></wpt>
+  <wpt lat="37.790705" lon="-122.411277"><time>2026-06-15T12:01:00Z</time></wpt>
+  <wpt lat="37.791459" lon="-122.412028"><time>2026-06-15T12:01:10Z</time></wpt>
+  <wpt lat="37.792088" lon="-122.412653"><time>2026-06-15T12:01:20Z</time></wpt>
+  <wpt lat="37.792717" lon="-122.413278"><time>2026-06-15T12:01:30Z</time></wpt>
+  <wpt lat="37.793660" lon="-122.414216"><time>2026-06-15T12:01:40Z</time></wpt>
+  <wpt lat="37.794603" lon="-122.415154"><time>2026-06-15T12:01:50Z</time></wpt>
+</gpx>

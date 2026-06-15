@@ -4,6 +4,7 @@ import type {
   ExpoLiveLocationModuleEvents,
   LocationSample,
   PermissionStatus,
+  RiskZone,
 } from './ExpoLiveLocation.types';
 
 /**
@@ -16,6 +17,12 @@ declare class ExpoLiveLocationModule extends NativeModule<ExpoLiveLocationModule
   requestPermission(): Promise<PermissionStatus>;
   /** Resolves a single, most-recent location; rejects if it cannot be produced. */
   getCurrentLocation(): Promise<LocationSample>;
+  /**
+   * Replaces the set of zones that drive `onRiskAlert`. Pass an empty array to
+   * disable risk alerts. Invalid zones (non-positive radius, out-of-range
+   * coordinates) are ignored natively. Takes effect on the next location sample.
+   */
+  setRiskZones(zones: RiskZone[]): void;
   /** Begins streaming `onLocationUpdate` events. Idempotent. */
   startUpdates(): void;
   /** Stops streaming. Idempotent. */

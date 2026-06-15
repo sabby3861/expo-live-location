@@ -9,6 +9,10 @@ presence, and contains no location logic of its own. The result is a module that
 is easy to reason about, fully typed end to end, and unit-tested without a
 device or simulator.
 
+<p align="center">
+  <img src="docs/example-ios.png" alt="Example app: a Live Location screen with a red &quot;Inside risk zone&quot; banner above a card showing live coordinates, altitude, speed, and accuracy." width="300">
+</p>
+
 ## Highlights
 
 - **Decoupled core.** `LiveLocationKit` is a standalone Swift package. It builds
@@ -25,6 +29,10 @@ device or simulator.
   JavaScript holds a listener.
 - **Typed all the way down.** No `any` in the TypeScript surface; a
   `useLiveLocation()` hook handles subscription and cleanup for you.
+- **Risk-zone monitoring.** A pure `RiskMonitor` watches the same location stream
+  against circular `RiskZone`s and emits typed `entered` / `exited` /
+  `approaching` events as the device crosses boundaries — a traveller-safety
+  primitive, fully unit-tested with scripted coordinates, no network or maps.
 
 ## Architecture
 
@@ -55,9 +63,10 @@ device or simulator.
         └────────────────────────────────────────────────────────────────┘
 ```
 
-The two mapping seams — `LocationSample ↔ CLLocation` and `LocationSample ↔ Expo
-Record` — are the only places types are translated, and each lives in exactly
-one file. CoreLocation is imported in exactly two files; Expo is imported only in
+Type translation is confined to dedicated seams: `LocationSample ↔ CLLocation`
+and `LocationSample ↔ Expo Record` each live in exactly one file, and the risk
+layer's bridge (`RiskEvent`/`RiskZone ↔ Expo Record`) is likewise isolated to a
+single file. CoreLocation is imported in exactly two files; Expo is imported only in
 `ios/`.
 
 ## Usage
@@ -101,6 +110,43 @@ ExpoLiveLocation.stopUpdates();
 
 Add `NSLocationWhenInUseUsageDescription` to your app's `Info.plist` (the
 `example/` app sets it via `app.json`).
+
+### Risk zones
+
+Pass circular zones to monitor and the hook reports the latest crossing through
+`risk`:
+
+```tsx
+import { useLiveLocation, type RiskZone } from 'expo-live-location';
+
+const zones: RiskZone[] = [
+  { name: 'Harbor District', latitude: 37.3349, longitude: -122.009, radius: 600 },
+];
+
+function Screen() {
+  const { location, risk } = useLiveLocation({ riskZones: zones });
+  // risk?.kind is 'entered' | 'exited' | 'approaching'; risk?.distance is meters.
+}
+```
+
+Or drive it imperatively:
+
+```ts
+import { ExpoLiveLocation } from 'expo-live-location';
+
+ExpoLiveLocation.setRiskZones([
+  { name: 'Harbor District', latitude: 37.3349, longitude: -122.009, radius: 600 },
+]);
+const sub = ExpoLiveLocation.addListener('onRiskAlert', (alert) => {
+  console.log(alert.kind, alert.zone, alert.distance);
+});
+ExpoLiveLocation.startUpdates();
+```
+
+A device within a zone's radius is *inside* it (`entered` / `exited`); within a
+configurable margin beyond the radius it is *approaching*. Events fire only on
+boundary crossings, so a stationary device alerts once and then stays quiet. All
+distance math is great-circle distance via CoreLocation — offline, no maps.
 
 ## Design decisions
 
@@ -154,6 +200,10 @@ Scope of what is verified, stated honestly:
 
 - **Domain types, `LocationSourcing`, and `LiveLocationProvider`** — unit-tested
   through a mock (the suite above).
+- **Risk monitoring (`RiskMonitor`, `RiskZone`, `proximity`)** — unit-tested with
+  scripted coordinates fed through the mock source: enter/exit/approach
+  transitions, no-spam-while-stationary, multi-zone independence, and the
+  proximity distance itself.
 - **`SystemLocationSource`** — compiled and type-checked as part of
   `swift build`/`swift test` under Swift 6 strict concurrency, but its live
   CoreLocation behavior is not unit-tested, since that needs a device.
@@ -178,6 +228,29 @@ npx expo run:ios                  # prebuilds, pod installs, and launches on iOS
 `npx expo run:ios` requires a full Xcode install (not just the Command Line
 Tools). The example app declares `NSLocationWhenInUseUsageDescription`, so iOS
 will prompt for permission on first launch.
+
+The example monitors three demo risk zones around the simulator's default San
+Francisco location and shows the live banner pictured above, which changes as the
+simulated location enters, approaches, and leaves a zone. A freshly launched
+simulator sits inside one zone, so the banner shows **Inside risk zone** on the
+first fix with no setup.
+
+To watch the banner transition through every state, drive the bundled
+`example/route.gpx` through the zones (**Xcode ▸ Debug ▸ Simulate Location ▸ Add
+GPX File to Workspace…**, then pick `route`). Without Xcode, move a booted
+simulator along the same path from the command line:
+
+```bash
+# Jump to a single state:
+xcrun simctl location booted set 37.7858,-122.4064    # Inside      (red)
+xcrun simctl location booted set 37.7896,-122.4103    # Approaching (amber)
+xcrun simctl location booted set 37.7780,-122.3920    # All clear   (green)
+
+# Drive the whole Inside → clear → Approaching → Inside → clear loop:
+xcrun simctl location booted start --speed=12 \
+  37.785800,-122.406400 37.789573,-122.410152 37.792088,-122.412653 \
+  37.794603,-122.415154
+```
 
 ## Requirements
 

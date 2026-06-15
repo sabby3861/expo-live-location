@@ -4,7 +4,7 @@
     "slug": "expo-live-location-example",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -12,6 +12,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app shows your live location to demonstrate expo-live-location."
       }
-    }
+    },
+    "plugins": [
+      "expo-splash-screen"
+    ]
   }
 }
