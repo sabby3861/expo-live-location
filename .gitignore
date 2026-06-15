@@ -6,6 +6,8 @@ CLAUDE.md
 node_modules/
 npm-debug.*
 yarn-error.*
+# Library: the lockfile is not used when installed as a dependency.
+package-lock.json
 
 # Build output
 build/
