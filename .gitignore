@@ -1,0 +1,10 @@
+.claude/
+CLAUDE.md
+node_modules/
+ios/Pods/
+build/
+.build/
+DerivedData/
+.DS_Store
+*.xcuserdata
+xcuserdata/
