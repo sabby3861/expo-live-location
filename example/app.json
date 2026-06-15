@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "expo-live-location-example",
+    "slug": "expo-live-location-example",
+    "version": "1.0.0",
+    "platforms": ["ios"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app shows your live location to demonstrate expo-live-location."
+      }
+    }
+  }
+}
