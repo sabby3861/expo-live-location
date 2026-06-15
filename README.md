@@ -134,7 +134,7 @@ LiveLocationKit/     Pure Swift package (the core). swift test runs here.
   Tests/             MockLocationSource + behavioral tests
 ios/                 Thin Expo adapter; podspec compiles the Kit sources in place
 src/                 TypeScript surface + useLiveLocation hook
-example/             Minimal example screen
+example/             Runnable Expo app that consumes the module
 ```
 
 ## Building & testing
@@ -157,10 +157,27 @@ Scope of what is verified, stated honestly:
 - **`SystemLocationSource`** — compiled and type-checked as part of
   `swift build`/`swift test` under Swift 6 strict concurrency, but its live
   CoreLocation behavior is not unit-tested, since that needs a device.
-- **The Expo adapter (`ios/`) and the TypeScript surface (`src/`)** — written
-  against verified Expo SDK 56 APIs, but not built or type-checked on their own in
-  this repository; they compile as part of a host app that installs the module's
-  pods and JavaScript dependencies.
+- **The TypeScript surface (`src/`)** — type-checked and compiled to `build/`
+  with `npm run build` (`tsc`, strict). Run it to verify the JS surface.
+- **The Expo Swift adapter (`ios/`)** — written against verified Expo SDK 56 APIs;
+  it is not compiled in this repository on its own, since it builds only as part
+  of an app that installs `ExpoModulesCore`. Build the example app to compile it.
+
+## Running the example
+
+The `example/` directory is a self-contained Expo app that consumes the module
+via Expo autolinking (`expo.autolinking.nativeModulesDir: ".."`).
+
+```bash
+npm install && npm run build      # build the module's JS surface to build/
+cd example
+npm install
+npx expo run:ios                  # prebuilds, pod installs, and launches on iOS
+```
+
+`npx expo run:ios` requires a full Xcode install (not just the Command Line
+Tools). The example app declares `NSLocationWhenInUseUsageDescription`, so iOS
+will prompt for permission on first launch.
 
 ## Requirements
 
