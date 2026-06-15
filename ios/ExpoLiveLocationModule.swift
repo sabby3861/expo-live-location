@@ -18,11 +18,13 @@ public final class ExpoLiveLocationModule: Module {
 
     private static let locationEvent = "onLocationUpdate"
 
-    /// Created lazily on the main thread to honor `SystemLocationSource`'s
-    /// contract: CoreLocation delivers authorization callbacks on the run loop of
-    /// the thread that created the manager, and Expo module init is not
-    /// guaranteed to be the main thread.
-    private lazy var provider: LiveLocationProvider = Self.makeProviderOnMain()
+    /// Backing storage for the provider and its construction lock. A plain
+    /// `lazy var` is not safe here: Expo can dispatch the async functions and the
+    /// observing hooks on different threads, and a racing first access could build
+    /// two providers (two `CLLocationManager`s). `resolvedProvider()` guarantees a
+    /// single instance, created once on the main thread.
+    private let providerLock = NSLock()
+    private var _provider: LiveLocationProvider?
 
     /// Guards `streamTask` and `streamGeneration`. The start/stop entry points are
     /// reachable from both the imperative functions and the observing hooks, which
@@ -45,11 +47,11 @@ public final class ExpoLiveLocationModule: Module {
         Events(Self.locationEvent)
 
         AsyncFunction("requestPermission") { () async -> String in
-            PermissionStatus(await self.provider.requestAuthorization()).rawValue
+            PermissionStatus(await self.resolvedProvider().requestAuthorization()).rawValue
         }
 
         AsyncFunction("getCurrentLocation") { () async throws -> LocationSampleRecord in
-            LocationSampleRecord(try await self.provider.currentLocation())
+            LocationSampleRecord(try await self.resolvedProvider().currentLocation())
         }
 
         Function("startUpdates") {
@@ -70,6 +72,8 @@ public final class ExpoLiveLocationModule: Module {
     }
 
     private func startStreaming() {
+        // Resolve the provider before taking streamLock so the two locks never nest.
+        let provider = resolvedProvider()
         streamLock.lock()
         guard streamTask == nil else {
             streamLock.unlock()
@@ -77,7 +81,6 @@ public final class ExpoLiveLocationModule: Module {
         }
         streamGeneration += 1
         let generation = streamGeneration
-        let provider = self.provider
         streamTask = Task { [weak self] in
             for await sample in provider.locationUpdates() {
                 guard let self else { break }
@@ -107,6 +110,20 @@ public final class ExpoLiveLocationModule: Module {
             streamTask = nil
         }
         streamLock.unlock()
+    }
+
+    /// Returns the single provider, constructing it on first use. Creation is
+    /// serialized by `providerLock` and performed on the main thread to honor
+    /// `SystemLocationSource`'s run-loop contract.
+    private func resolvedProvider() -> LiveLocationProvider {
+        providerLock.lock()
+        defer { providerLock.unlock() }
+        if let existing = _provider {
+            return existing
+        }
+        let created = Self.makeProviderOnMain()
+        _provider = created
+        return created
     }
 
     private static func makeProviderOnMain() -> LiveLocationProvider {

@@ -150,11 +150,17 @@ swift test            # mock-only, deterministic, no simulator required
 > `xcode-select` points at the Command Line Tools, prefix the command with
 > `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
-Scope of what the tests cover: the domain types, the `LocationSourcing`
-abstraction, and `LiveLocationProvider`, all driven through a mock. The
-CoreLocation-backed `SystemLocationSource` and the Expo adapter are
-compile-verified and exercised through the real frameworks in an app build —
-they are not unit-tested here, by design, since that would require a device.
+Scope of what is verified, stated honestly:
+
+- **Domain types, `LocationSourcing`, and `LiveLocationProvider`** — unit-tested
+  through a mock (the suite above).
+- **`SystemLocationSource`** — compiled and type-checked as part of
+  `swift build`/`swift test` under Swift 6 strict concurrency, but its live
+  CoreLocation behavior is not unit-tested, since that needs a device.
+- **The Expo adapter (`ios/`) and the TypeScript surface (`src/`)** — written
+  against verified Expo SDK 56 APIs, but not built or type-checked on their own in
+  this repository; they compile as part of a host app that installs the module's
+  pods and JavaScript dependencies.
 
 ## Requirements
 
