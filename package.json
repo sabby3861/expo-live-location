@@ -34,6 +34,10 @@
     "react-native": "*"
   },
   "devDependencies": {
-    "expo-module-scripts": "^4.0.0"
+    "@types/react": "^19.0.0",
+    "expo": "~56.0.12",
+    "expo-module-scripts": "^4.0.0",
+    "react": "19.2.3",
+    "react-native": "0.85.3"
   }
 }
