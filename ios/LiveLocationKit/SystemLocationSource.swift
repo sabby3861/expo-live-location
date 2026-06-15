@@ -97,7 +97,7 @@ public final class SystemLocationSource: NSObject, LocationSourcing, @unchecked 
     private func firstLiveUpdate() async throws -> LocationSample {
         do {
             for try await update in CLLocationUpdate.liveUpdates() {
-                if #available(iOS 17.0, macOS 15.0, *), update.authorizationDenied {
+                if #available(iOS 18.0, macOS 15.0, *), update.authorizationDenied {
                     throw LocationError.denied
                 }
                 if let location = update.location {
@@ -117,7 +117,7 @@ public final class SystemLocationSource: NSObject, LocationSourcing, @unchecked 
         let task = Task {
             do {
                 for try await update in CLLocationUpdate.liveUpdates() {
-                    if #available(iOS 17.0, macOS 15.0, *), update.authorizationDenied {
+                    if #available(iOS 18.0, macOS 15.0, *), update.authorizationDenied {
                         break
                     }
                     if let location = update.location {

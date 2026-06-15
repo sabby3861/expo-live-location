@@ -1,5 +1,7 @@
 import ExpoModulesCore
-import LiveLocationKit
+
+// LiveLocationKit's sources are compiled into this pod target in place (see the
+// podspec's source_files), so its public types are visible here without an import.
 
 /// The Expo adapter for LiveLocationKit.
 ///

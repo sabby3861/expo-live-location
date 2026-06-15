@@ -26,9 +26,10 @@ Pod::Spec.new do |s|
     'SWIFT_STRICT_CONCURRENCY' => 'complete'
   }
 
-  # The thin Expo adapter (this directory) plus the pure LiveLocationKit sources,
-  # referenced in place rather than copied. There is exactly one canonical, unit-
-  # tested copy of the core; the Kit keeps its own folder so the decoupling stays
-  # visible in the project navigator.
-  s.source_files = '*.{h,m,swift}', '../LiveLocationKit/Sources/LiveLocationKit/**/*.swift'
+  # The thin Expo adapter (this directory) plus the pure LiveLocationKit sources.
+  # CocoaPods only includes files under the podspec's own directory, so the Kit is
+  # exposed here through the `LiveLocationKit` symlink, which points at
+  # ../LiveLocationKit/Sources/LiveLocationKit. There is still exactly one canonical,
+  # unit-tested copy of the core — the symlink avoids duplication and drift.
+  s.source_files = '*.{h,m,swift}', 'LiveLocationKit/**/*.swift'
 end

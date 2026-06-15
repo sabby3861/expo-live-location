@@ -1,5 +1,7 @@
 import ExpoModulesCore
-import LiveLocationKit
+
+// LiveLocationKit's sources are compiled into this pod target in place, so its
+// public types are visible here without an import.
 
 /// The bridge representation of a `LocationSample`.
 ///
