@@ -3,9 +3,12 @@
     "name": "expo-live-location-example",
     "slug": "expo-live-location-example",
     "version": "1.0.0",
-    "platforms": ["ios"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.example.expolivelocation",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app shows your live location to demonstrate expo-live-location."
       }
