@@ -19,7 +19,11 @@ Pod::Spec.new do |s|
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
-    'SWIFT_COMPILATION_MODE' => 'wholemodule'
+    'SWIFT_COMPILATION_MODE' => 'wholemodule',
+    # The Kit is developed and unit-tested under Swift 6 strict concurrency
+    # (see Package.swift); enforce the same checking in the app build so the
+    # @unchecked Sendable / locking guarantees are verified where it ships.
+    'SWIFT_STRICT_CONCURRENCY' => 'complete'
   }
 
   # The thin Expo adapter (this directory) plus the pure LiveLocationKit sources,

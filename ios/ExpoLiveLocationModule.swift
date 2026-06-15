@@ -24,9 +24,20 @@ public final class ExpoLiveLocationModule: Module {
     /// guaranteed to be the main thread.
     private lazy var provider: LiveLocationProvider = Self.makeProviderOnMain()
 
+    /// Guards `streamTask` and `streamGeneration`. The start/stop entry points are
+    /// reachable from both the imperative functions and the observing hooks, which
+    /// Expo may invoke from different threads, so the running state is locked.
+    private let streamLock = NSLock()
+
     /// The task consuming `provider.locationUpdates()`. Non-nil exactly while the
     /// native stream is active.
     private var streamTask: Task<Void, Never>?
+
+    /// Bumped on every start and stop. A task that finishes on its own clears
+    /// `streamTask` only if its generation is still current, so a stream that ends
+    /// naturally (e.g. authorization revoked mid-stream) cannot wipe out a newer
+    /// stream that a subsequent start already installed.
+    private var streamGeneration = 0
 
     public func definition() -> ModuleDefinition {
         Name("ExpoLiveLocation")
@@ -59,19 +70,43 @@ public final class ExpoLiveLocationModule: Module {
     }
 
     private func startStreaming() {
-        guard streamTask == nil else { return }
+        streamLock.lock()
+        guard streamTask == nil else {
+            streamLock.unlock()
+            return
+        }
+        streamGeneration += 1
+        let generation = streamGeneration
         let provider = self.provider
         streamTask = Task { [weak self] in
             for await sample in provider.locationUpdates() {
                 guard let self else { break }
                 self.sendEvent(Self.locationEvent, LocationSampleRecord(sample).toDictionary())
             }
+            // The stream finished on its own (e.g. authorization revoked). Clear the
+            // running flag so a future start can begin again.
+            self?.finishStreaming(generation: generation)
         }
+        streamLock.unlock()
     }
 
     private func stopStreaming() {
-        streamTask?.cancel()
+        streamLock.lock()
+        let task = streamTask
         streamTask = nil
+        // Invalidate any in-flight natural completion so it cannot clear a stream
+        // that a later start installs.
+        streamGeneration += 1
+        streamLock.unlock()
+        task?.cancel()
+    }
+
+    private func finishStreaming(generation: Int) {
+        streamLock.lock()
+        if generation == streamGeneration {
+            streamTask = nil
+        }
+        streamLock.unlock()
     }
 
     private static func makeProviderOnMain() -> LiveLocationProvider {

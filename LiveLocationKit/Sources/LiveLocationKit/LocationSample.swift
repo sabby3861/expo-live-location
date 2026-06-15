@@ -17,6 +17,7 @@ public struct LocationSample: Sendable, Equatable {
         /// Longitude in degrees. Positive values are east of the prime meridian.
         public let longitude: Double
 
+        /// Creates a coordinate from latitude and longitude in degrees.
         public init(latitude: Double, longitude: Double) {
             self.latitude = latitude
             self.longitude = longitude
@@ -41,6 +42,8 @@ public struct LocationSample: Sendable, Equatable {
     /// The moment the location was determined.
     public let timestamp: Date
 
+    /// Creates a sample from its components. `speed` and `horizontalAccuracy`
+    /// follow CoreLocation's convention where negative values mean "unavailable".
     public init(
         coordinate: Coordinate,
         altitude: Double,

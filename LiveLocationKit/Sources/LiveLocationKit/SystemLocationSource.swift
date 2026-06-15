@@ -27,6 +27,11 @@ public final class SystemLocationSource: NSObject, LocationSourcing, @unchecked 
     /// Active streaming continuations (iOS 16 fallback path), keyed for removal.
     private var streamContinuations: [UUID: AsyncStream<LocationSample>.Continuation] = [:]
 
+    /// Creates a source backed by a fresh `CLLocationManager`.
+    ///
+    /// - Important: Construct instances on the main thread. CoreLocation delivers
+    ///   delegate callbacks on the run loop of the thread that created the manager,
+    ///   and authorization changes flow through that delegate on every path.
     public override init() {
         manager = CLLocationManager()
         super.init()
@@ -199,18 +204,22 @@ extension SystemLocationSource: CLLocationManagerDelegate {
     }
 
     public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // `.locationUnknown` is transient — CoreLocation keeps trying — so it is
-        // not surfaced as a failure.
-        if let clError = error as? CLError, clError.code == .locationUnknown { return }
-
+        // A one-shot `requestLocation()` reports its terminal failure here — and
+        // that terminal error is frequently `.locationUnknown` when no fix could be
+        // obtained — so its waiters must always be resolved or the `await` hangs.
         let oneShots = lock.withLock {
             let pending = oneShotWaiters
             oneShotWaiters.removeAll()
             return pending
         }
-        let mapped = LocationError(error)
-        for oneShot in oneShots {
-            oneShot.resume(throwing: mapped)
+        if !oneShots.isEmpty {
+            let mapped = LocationError(error)
+            for oneShot in oneShots {
+                oneShot.resume(throwing: mapped)
+            }
         }
+
+        // For continuous streaming, `.locationUnknown` is transient — CoreLocation
+        // keeps trying — so the active streams are left running.
     }
 }
