@@ -8,10 +8,9 @@ import PackageDescription
 /// be built and unit-tested in isolation (`swift test`, no simulator required)
 /// and reused from any Swift target. The Expo layer is a thin adapter on top.
 ///
-/// The Kit sources live in `ios/LiveLocationKit` so that exactly one canonical
-/// copy is both unit-tested by this package and compiled into the Expo pod (whose
-/// podspec can only reference files within its own `ios/` directory). The folder
-/// still imports nothing from Expo — the decoupling is by dependency, not path.
+/// This is the one canonical copy of the core. The Expo pod compiles the same
+/// sources directly from here (see `ExpoLiveLocation.podspec` at the repo root),
+/// so there's no duplication and nothing to keep in sync.
 let package = Package(
     name: "LiveLocationKit",
     platforms: [
@@ -24,13 +23,11 @@ let package = Package(
     targets: [
         .target(
             name: "LiveLocationKit",
-            path: "ios/LiveLocationKit",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "LiveLocationKitTests",
             dependencies: ["LiveLocationKit"],
-            path: "Tests/LiveLocationKitTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]

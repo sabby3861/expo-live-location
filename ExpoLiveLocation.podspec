@@ -1,6 +1,6 @@
 require 'json'
 
-package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
+package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
 Pod::Spec.new do |s|
   s.name           = 'ExpoLiveLocation'
@@ -26,10 +26,10 @@ Pod::Spec.new do |s|
     'SWIFT_STRICT_CONCURRENCY' => 'complete'
   }
 
-  # The thin Expo adapter (this directory) plus the pure LiveLocationKit sources.
-  # CocoaPods only includes files under the podspec's own directory, so the Kit is
-  # exposed here through the `LiveLocationKit` symlink, which points at
-  # ../LiveLocationKit/Sources/LiveLocationKit. There is still exactly one canonical,
-  # unit-tested copy of the core — the symlink avoids duplication and drift.
-  s.source_files = '*.{h,m,swift}', 'LiveLocationKit/**/*.swift'
+  # This podspec sits at the package root so its pod root spans both halves of the
+  # module: the thin Expo adapter in ios/, and the pure core from the standalone
+  # LiveLocationKit package (the same sources swift test runs). One canonical copy,
+  # compiled into one module, nothing to keep in sync. CocoaPods only globs files
+  # under the podspec's own directory, which is why this lives here and not in ios/.
+  s.source_files = 'ios/*.{h,m,swift}', 'LiveLocationKit/Sources/LiveLocationKit/**/*.swift'
 end
