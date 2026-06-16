@@ -1,32 +1,21 @@
 # expo-live-location
 
-Real-time iOS location for React Native. The device logic lives in a pure Swift
-package (`LiveLocationKit`) with no Expo or React Native dependency, handed out as
-a single `AsyncStream<LocationSample>`. The Expo layer is a thin adapter: it moves
-values across the JS bridge and starts or stops the stream based on who's
-listening. No location logic in the bridge. The core builds and tests on its own,
-no simulator needed.
+Live iOS location for React Native, packaged as an Expo module. I built it to keep
+all the CoreLocation work in a plain Swift package and treat the Expo bridge as a
+thin shim on top, so the core logic can be tested without a simulator or a running
+app.
 
 <p align="center">
-  <img src="docs/example-ios.png" alt="Example app: a Live Location screen with a red &quot;Inside risk zone&quot; banner above a card showing live coordinates, altitude, speed, and accuracy." width="300">
+  <img src="docs/example-ios.png" alt="Example app showing a red Inside risk zone banner above a card with live coordinates, altitude, speed, and accuracy." width="300">
 </p>
 
-## Highlights
+The Swift core (`LiveLocationKit`) imports nothing from Expo or React Native. It
+hands out location as an `AsyncStream<LocationSample>` and runs on its own under
+`swift test`. The Expo side only maps values across the bridge and starts/stops the
+stream as JS listeners come and go, so location services aren't left running with
+nothing reading them.
 
-- `LiveLocationKit` is a standalone Swift package. It builds and tests with
-  `swift test` (mock only) and can be reused from any Swift target.
-- `liveUpdates()` is the primary path on iOS 17+, with a `CLLocationManagerDelegate`
-  fallback for iOS 16. Both come out of one `AsyncStream`, so callers never branch
-  on OS version.
-- DI through the `LocationSourcing` protocol, so the whole stack runs against a mock
-  in tests.
-- The native source only runs while JavaScript holds a listener.
-- Fully typed TypeScript (no `any`) and a `useLiveLocation()` hook that handles
-  subscription and cleanup.
-- Risk-zone monitoring: a pure `RiskMonitor` emits `entered`, `exited`, and
-  `approaching` events as the device crosses circular zones. No network, no maps.
-
-## Architecture
+## How it fits together
 
 ```
         ┌──────────────────────────────────────────────────────────────┐
@@ -55,12 +44,16 @@ no simulator needed.
         └──────────────────────────────────────────────────────────────┘
 ```
 
-Type translation stays in dedicated seams. `LocationSample ↔ CLLocation` and
-`LocationSample ↔ Expo Record` each live in one file, the risk bridge
-(`RiskEvent`/`RiskZone ↔ Expo Record`) in another. CoreLocation is imported in two
-files, Expo only under `ios/`.
+`CLLocationUpdate.liveUpdates()` runs on iOS 17+, with a `CLLocationManagerDelegate`
+fallback for 16. Both feed the same stream, so nothing upstream has to care which
+one ran. The source sits behind a `LocationSourcing` protocol, which is what lets
+the tests drive everything with a mock.
 
-## Usage
+There's also a risk-zone monitor. Give it circular zones and it emits
+`entered` / `exited` / `approaching` as the device crosses them. Just geometry, no
+maps and no network.
+
+## Using it
 
 ```tsx
 import { useLiveLocation } from 'expo-live-location';
@@ -82,138 +75,67 @@ export default function Screen() {
 }
 ```
 
-There's a typed imperative API if you'd rather skip the hook: `requestPermission()`,
-`getCurrentLocation()`, `startUpdates()`/`stopUpdates()`, and
-`addListener('onLocationUpdate', …)`.
-
-Add `NSLocationWhenInUseUsageDescription` to your Info.plist. The `example/` app
-sets it through `app.json`.
-
-### Risk zones
-
-Pass circular zones to monitor and the hook reports the latest crossing on `risk`:
+Pass zones in and `risk` reports the latest crossing:
 
 ```tsx
-import { useLiveLocation, type RiskZone } from 'expo-live-location';
-
-const zones: RiskZone[] = [
-  { name: 'Harbor District', latitude: 37.3349, longitude: -122.009, radius: 600 },
-];
-
-function Screen() {
-  const { location, risk } = useLiveLocation({ riskZones: zones });
-  // risk?.kind is 'entered' | 'exited' | 'approaching'; risk?.distance is meters.
-}
+const zones = [{ name: 'Harbor District', latitude: 37.3349, longitude: -122.009, radius: 600 }];
+const { risk } = useLiveLocation({ riskZones: zones });
+// risk?.kind is 'entered' | 'exited' | 'approaching', risk?.distance is meters
 ```
 
-Imperatively it's `setRiskZones([...])` plus an `onRiskAlert` listener.
+If you'd rather skip the hook there's a typed imperative API too:
+`requestPermission()`, `getCurrentLocation()`, `startUpdates()`/`stopUpdates()`,
+`setRiskZones()`, and the `onLocationUpdate` / `onRiskAlert` events. Add
+`NSLocationWhenInUseUsageDescription` to your Info.plist (the example sets it in
+`app.json`).
 
-Inside the radius counts as inside (`entered`/`exited`). Within a configurable
-margin past the radius it's approaching. Events fire only on crossings, so a
-stationary device alerts once and then goes quiet. Distance is great-circle math
-through CoreLocation, all offline.
+## Running it
 
-## Design decisions
-
-Two OS strategies, one stream. `liveUpdates()` leads (clean async sequence,
-automatic cancellation) and the iOS 16 delegate fallback gets bridged into an
-`AsyncStream` of the same type, so every consumer writes one loop. Errors get a
-real home rather than a non-throwing stream: `requestAuthorization()` and the
-one-shot `currentLocation()` throw a typed `LocationError`, and the update stream
-just finishes when it can't produce values.
-
-Lifecycle follows listeners. `OnStartObserving`/`OnStopObserving` start and stop
-the stream as listeners come and go, so location services never run with nothing
-consuming them. One `Task` reference is the source of truth, and
-`startUpdates()`/`stopUpdates()` go through the same path, so they can't
-double-start or leak.
-
-## Project layout
-
-```
-LiveLocationKit/               Standalone Swift package (the core).
-  Package.swift                cd in and run swift test.
-  Sources/LiveLocationKit/     Domain types, LocationSourcing, SystemLocationSource,
-                               LiveLocationProvider, RiskMonitor/RiskZone/RiskEvent.
-  Tests/LiveLocationKitTests/  MockLocationSource and the behavioral tests.
-ios/                           Thin Expo adapter: the module and the Record mapping.
-ExpoLiveLocation.podspec       Pod manifest (repo root, see below).
-src/                           TypeScript surface and the useLiveLocation hook.
-example/                       Runnable Expo app that consumes the module.
-```
-
-The core is its own package, so it builds and tests with no app and no simulator.
-The Expo pod compiles the same files in place rather than copying them. CocoaPods
-only globs files under the podspec's own directory, so the podspec sits at the
-repo root where its pod directory covers both `ios/` and the Kit, and
-`apple.podspecPath` in `expo-module.config.json` points autolinking at it. One
-canonical copy, compiled two ways, importing nothing from Expo.
-
-## Building and testing
-
-Run the unit tests from the package:
+Core tests:
 
 ```bash
-cd LiveLocationKit
-swift test            # mock only, deterministic, no simulator
+cd LiveLocationKit && swift test
 ```
 
-`swift test` needs the Xcode toolchain for XCTest. If `xcode-select` points at the
-Command Line Tools, prefix it with
-`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+Uses Xcode's XCTest. If `xcode-select` points at the Command Line Tools, prefix it
+with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The mock-backed
+pieces are covered here; the live CoreLocation source only really exercises on a
+device.
 
-What's covered:
-
-- Domain types, `LocationSourcing`, and `LiveLocationProvider`, all through the mock.
-- Risk monitoring (`RiskMonitor`, `RiskZone`, `proximity`) with scripted coordinates:
-  enter/exit/approach, no spam while stationary, independent zones, the distance math.
-- `SystemLocationSource` compiles under Swift 6 strict concurrency but isn't
-  unit-tested, since its live CoreLocation behavior needs a device.
-- The TypeScript surface compiles to `build/` with `npm run build` (`tsc`, strict).
-- The Expo adapter under `ios/` only builds inside an app that installs
-  `ExpoModulesCore`, so build the example to compile it.
-
-## Running the example
-
-`example/` is a self-contained Expo app that picks up the module through
-autolinking (`expo.autolinking.nativeModulesDir: ".."`).
+The example app:
 
 ```bash
-npm install && npm run build      # build the module's JS to build/
-cd example
-npm install
-npx expo run:ios                  # prebuild, pod install, launch
+npm install && npm run build
+cd example && npm install
+npx expo run:ios
 ```
 
-`npx expo run:ios` needs a full Xcode install, not just the Command Line Tools.
-The app declares `NSLocationWhenInUseUsageDescription`, so iOS prompts for
-permission on first launch.
-
-It monitors three demo zones around the simulator's default San Francisco location.
-A fresh simulator starts inside one, so you get **Inside risk zone** on the first
-fix (that's the screenshot above).
-
-To watch it transition, drive the bundled `example/route.gpx` through the zones
-(Xcode ▸ Debug ▸ Simulate Location ▸ Add GPX File to Workspace…, pick `route`).
-No Xcode? Move a booted simulator from the command line:
+It drops three demo zones near the simulator's default San Francisco location and
+starts inside one, so the banner is red on launch. To watch it change, feed it
+`example/route.gpx` (Xcode ▸ Debug ▸ Simulate Location), or move the simulator from
+the terminal:
 
 ```bash
-# Jump to a single state:
-xcrun simctl location booted set 37.7858,-122.4064    # Inside      (red)
-xcrun simctl location booted set 37.7896,-122.4103    # Approaching (amber)
-xcrun simctl location booted set 37.7780,-122.3920    # All clear   (green)
-
-# Drive the full Inside -> clear -> Approaching -> Inside -> clear loop:
+xcrun simctl location booted set 37.7896,-122.4103   # approaching
 xcrun simctl location booted start --speed=12 \
-  37.785800,-122.406400 37.789573,-122.410152 37.792088,-122.412653 \
-  37.794603,-122.415154
+  37.785800,-122.406400 37.792088,-122.412653 37.794603,-122.415154
 ```
+
+## Layout
+
+```
+LiveLocationKit/   Swift package: the core and its tests
+ios/               Expo adapter (the module + Record mapping)
+src/               TS types and the useLiveLocation hook
+example/           Expo app that consumes it
+```
+
+One wrinkle worth flagging: CocoaPods only picks up files under the podspec's own
+folder. To keep a single copy of the Swift core and still compile it into the pod,
+the podspec lives at the repo root (pointed at via `apple.podspecPath`) and globs
+both `ios/` and `LiveLocationKit/Sources`. That's the only reason it isn't in
+`ios/`.
 
 ## Requirements
 
-- iOS 16+
-- Expo SDK 56+
-
-## License
-
-MIT, see [LICENSE](./LICENSE).
+iOS 16+, Expo SDK 56+. MIT licensed.
